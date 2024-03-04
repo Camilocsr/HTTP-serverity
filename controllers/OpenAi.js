@@ -4,7 +4,7 @@ const path = require('path');
 const wav = require('wav');
 
 const openai = new OpenAI({
-  apiKey: "bkFJtwljUXKDsMqkiWfz7mZZ",
+  apiKey: "",
 });
 
 let processingAudio = false;
@@ -37,9 +37,9 @@ const handleAudioUpload = async (req, res) => {
   processingAudio = true;
 
   if (req.method === 'POST' && req.url === '/OpenAi') {
-    let isNewAudio = true; // Restablecer la bandera isNewAudio aquí
+    let isNewAudio = true; 
     
-    // Vaciar la carpeta audioFTP antes de procesar otro audio
+    
     try {
       const files = fs.readdirSync('audioFTP');
       files.forEach((file) => {
@@ -66,11 +66,11 @@ const handleAudioUpload = async (req, res) => {
           isNewAudio = false;
         }
 
-        // Continuar con el procesamiento del audio después de verificar si es nuevo
+        
         await continueAudioProcessing(req, audioFilePath, isNewAudio, res);
       });
     } else {
-      // Si el archivo no existe, continuar con el procesamiento del audio
+      
       await continueAudioProcessing(req, audioFilePath, isNewAudio, res);
     }
   } else {
@@ -82,7 +82,7 @@ const handleAudioUpload = async (req, res) => {
 const continueAudioProcessing = async (req, audioFilePath, isNewAudio, res) => {
   const audioFileStream = new wav.FileWriter(audioFilePath, {
     channels: 1,
-    sampleRate: 44100,
+    sampleRate: 16000,
     bitDepth: 16,
   });
 
@@ -124,35 +124,42 @@ const continueAudioProcessing = async (req, audioFilePath, isNewAudio, res) => {
 };
 
 const audioFun = async (audioFilePath) => {
-  try {
-    
-    if (path.extname(audioFilePath).toLowerCase() !== '.wav') {
-      throw new Error('El archivo no es un archivo WAV');
+  let retryCount = 0;
+  const maxRetries = 3;
+
+  while (retryCount < maxRetries) {
+    try {
+      if (path.extname(audioFilePath).toLowerCase() !== '.wav') {
+        throw new Error('El archivo no es un archivo WAV');
+      }
+
+      const transcription = await openai.audio.transcriptions.create({
+        file: fs.createReadStream(audioFilePath),
+        model: "whisper-1",
+        sample_rate: 44100,
+        language: "es",
+        format: "wav",
+        punctuation: true,
+        word_level: true
+      });
+
+      let textoWisper = transcription.text;
+      const textoModificado = await main(textoWisper);
+
+      fs.unlinkSync(audioFilePath);
+
+      return textoModificado;
+    } catch (error) {
+      console.error('Error al crear la transcripción de audio con OpenAI:', error);
+      if (error.status === 400 && error.error && error.error.type === 'invalid_request_error') {
+        retryCount++;
+        console.log(`Reintentando (${retryCount}/${maxRetries})...`);
+      } else {
+        throw error;
+      }
     }
-
-    
-    const transcription = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(audioFilePath),
-      model: "whisper-1",
-      sample_rate: 44100,
-      language: "es",
-      format: "wav",
-      punctuation: true,
-      word_level: true
-    });
-
-    
-    let textoWisper = transcription.text;
-    const textoModificado = await main(textoWisper);
-
-    
-    fs.unlinkSync(audioFilePath);
-
-    return textoModificado;
-  } catch (error) {
-    console.error('Error al crear la transcripción de audio con OpenAI:', error);
-    throw error;
   }
+  throw new Error(`Se superó el número máximo de reintentos (${maxRetries})`);
 };
 
 module.exports = {
