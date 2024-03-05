@@ -14,7 +14,7 @@ async function main(text) {
     const chatCompletion = await openai.chat.completions.create({
       messages: [{ role: 'user', content: text }],
       model: 'gpt-3.5-turbo',
-      max_tokens: 100,
+      // max_tokens: 100,
       temperature: 0.5,
     });
 
@@ -114,25 +114,65 @@ const handleAudioUpload = async (req, res) => {
   }
 };
 
+// const audioFun = async (audioFilePath) => {
+//   try {
+//     console.time("audioFun");
+//     const transcription = await openai.audio.transcriptions.create({
+//       file: fs.createReadStream(audioFilePath),
+//       model: "whisper-1",
+//       language: "es",
+//     });
+//     let textowisper = transcription.text
+
+//     const textoModificado = await main(textowisper);
+
+//     console.log(textoModificado);
+//     console.timeEnd("audioFun");
+
+//     return textoModificado;
+//   } catch (error) {
+//     console.error('Error al crear la transcripción de audio con OpenAI:', error);
+//     throw error;
+//   }
+// };
+
 const audioFun = async (audioFilePath) => {
-  try {
-    console.time("audioFun");
-    const transcription = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(audioFilePath),
-      model: "whisper-1"
-    });
-    let textowisper = transcription.text
+  let retryCount = 0;
+  const maxRetries = 3;
 
-    const textoModificado = await main(textowisper);
+  while (retryCount < maxRetries) {
+    try {
+      if (path.extname(audioFilePath).toLowerCase() !== '.wav') {
+        throw new Error('El archivo no es un archivo WAV');
+      }
 
-    console.log(textoModificado);
-    console.timeEnd("audioFun");
+      const transcription = await openai.audio.transcriptions.create({
+        file: fs.createReadStream(audioFilePath),
+        model: "whisper-1",
+        //language: "es",
+      });
 
-    return textoModificado;
-  } catch (error) {
-    console.error('Error al crear la transcripción de audio con OpenAI:', error);
-    throw error;
+      let textoWisper = transcription.text;
+      const textoModificado = await main(textoWisper);
+
+      fs.unlinkSync(audioFilePath);
+
+      return textoModificado;
+    } catch (error) {
+      console.error('Error al crear la transcripción de audio con OpenAI:', error);
+      if (error.status === 400 && error.error && error.error.type === 'invalid_request_error') {
+        retryCount++;
+        console.log(`Reintentando (${retryCount}/${maxRetries})...`);
+      } else {
+        throw error;
+      }
+    }
   }
+  throw new Error(`Se superó el número máximo de reintentos (${maxRetries})`);
+};
+
+module.exports = {
+  handleAudioUpload
 };
 
 module.exports = {

@@ -1,4 +1,4 @@
-require('dotenv');//variables de entorno.
+require('dotenv');
 const connectDB = require('./db/mongodb')
 const { port, DB,DB_HOST, DB_PORT, DB_NAME } = require('./config');
 const app = require('./app')
