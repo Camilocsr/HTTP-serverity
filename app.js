@@ -1,3 +1,5 @@
+/* This code snippet is setting up a Node.js server using Express framework. Here's a breakdown of what
+each part is doing: */
 const express = require('express')
 const bodyParser = require('body-parser');
 const cors = require('cors');

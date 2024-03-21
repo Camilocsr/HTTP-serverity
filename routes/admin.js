@@ -1,3 +1,6 @@
+/* This code snippet is setting up routes for handling admin-related operations in a Node.js
+application using the Express framework. Here's a breakdown of what each part does: */
+
 const express = require('express');
 const { addAdmin,getAdmin,authenticateAdmin,deleteAdmin } = require('../controllers/adminController');
 const api = express.Router();

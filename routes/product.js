@@ -1,3 +1,5 @@
+/* This code snippet is setting up a router using Express.js for handling different API endpoints
+related to products. Here's a breakdown of what each part is doing: */
 const express = require('express');
 const upload = require('../libs/storage');
 const { addProduct,getProducts,deleteProducts,editionProducts } = require('../controllers/productController')

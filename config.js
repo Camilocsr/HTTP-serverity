@@ -1,3 +1,6 @@
+/* This code snippet is a JavaScript file that is using the `dotenv` package to load environment
+variables from a `.env` file into the Node.js `process.env` object. Here's a breakdown of what the
+code is doing: */
 require('dotenv').config();
 const config = {
     appConfig:{

@@ -3,23 +3,104 @@ const fs = require('fs');
 const path = require('path');
 const wav = require('wav');
 
+let processingAudio = false;
+var cambioDeIdioma = "English";
+
 const openai = new OpenAI({
   apiKey: "",
 });
 
-let processingAudio = false;
+const MensajeResivido = async (req, res) => {
+  try {
+    const mensajeRecibido = req.body;
+
+    const primerMensaje = mensajeRecibido[Object.keys(mensajeRecibido)[0]];
+
+    if (mensajeRecibido.TextoUnity) {
+      console.log('Mensaje recibido:', primerMensaje);
+      res.status(200).send(`Mensaje recibido exitosamente, Idioma cambiado a ${primerMensaje}`);
+
+      cambioDeIdioma = primerMensaje;
+    } else {
+      console.log('Mensaje descartado:', primerMensaje);
+      res.status(400).send('Error del cliente, el mensaje no cumple con los criterios requeridos');
+    }
+  } catch (error) {
+    console.error('Error al procesar el mensaje:', error);
+    res.status(500).send('Error al procesar el mensaje');
+  }
+}
+
+const audioFun = async (audioFilePath) => {
+  let retryCount = 0;
+  const maxRetries = 3;
+
+  console.log(cambioDeIdioma);
+
+  while (retryCount < maxRetries) {
+    try {
+      if (path.extname(audioFilePath).toLowerCase() !== '.wav') {
+        throw new Error('El archivo no es un archivo WAV');
+      }
+
+      let language;
+      switch (cambioDeIdioma) {
+        case "Spanish":
+          language = "es";
+          break;
+        case "English":
+          language = "en";
+          break;
+        case "French":
+          language = "fr";
+          break;
+        default:
+          throw new Error('Idioma no válido');
+      }
+
+      const transcription = await openai.audio.transcriptions.create({
+        file: fs.createReadStream(audioFilePath),
+        model: "whisper-1",
+        language: language,
+      });
+
+      let textoWisper = transcription.text;
+      console.log('Transcripción Whisper: \n \n ', textoWisper);
+
+      const textoModificado = await main(textoWisper + "Respond without line breaks, do not add spaces after the period, if the message I sent you begins in a language other than Spanish, respond in that language, respond only to what I ask of you, do not be so creative, do not use punctuation marks, you are only allowed to use the comma");
+
+      fs.unlinkSync(audioFilePath);
+
+      return textoModificado;
+    } catch (error) {
+      console.error('Error al crear la transcripción de audio con OpenAI:', error);
+      if (error.status === 400 && error.error && error.error.type === 'invalid_request_error') {
+        retryCount++;
+        console.log(`Reintentando (${retryCount}/${maxRetries})...`);
+      } else {
+        throw error;
+      }
+    }
+  }
+  throw new Error(`Se superó el número máximo de reintentos (${maxRetries})`);
+};
+
 
 async function main(text) {
   try {
     const chatCompletion = await openai.chat.completions.create({
-      messages: [{ role: 'user', content: text }],
-      model: 'gpt-3.5-turbo',
-      // max_tokens: 100,
-      temperature: 0.5,
+      messages: [
+        {
+          role: 'user', content: text
+        }
+      ],
+      model: 'gpt-4-turbo-preview',
+      max_tokens: 100,
+      temperature: 0,
     });
 
     const response = chatCompletion.choices[0].message.content;
-    console.log('Respuesta de OpenAI:', response);
+    console.log('Respuesta de OpenAI: \n\n', response);
     return response;
   } catch (error) {
     console.error('Error al completar la conversación con OpenAI:', error);
@@ -27,9 +108,11 @@ async function main(text) {
   }
 }
 
+
+
 const handleAudioUpload = async (req, res) => {
   if (processingAudio) {
-    
+
     res.writeHead(409, { 'Content-Type': 'text/plain' });
     res.end('Error: Ya se está procesando un audio');
     return;
@@ -41,35 +124,35 @@ const handleAudioUpload = async (req, res) => {
     const audioFilePath = 'audioFTP/audio.wav';
     let isNewAudio = true;
 
-    
+
     if (fs.existsSync(audioFilePath)) {
-      
+
       const previousAudioContent = fs.readFileSync(audioFilePath);
-      
+
       let newAudioContent = Buffer.alloc(0);
 
-      
+
       req.on('data', (chunk) => {
         newAudioContent = Buffer.concat([newAudioContent, chunk]);
       });
 
-      
+
       req.on('end', async () => {
-        
+
         if (Buffer.compare(previousAudioContent, newAudioContent) === 0) {
           isNewAudio = false;
         }
       });
     }
 
-    
+
     const audioFileStream = new wav.FileWriter(audioFilePath, {
       channels: 1,
       sampleRate: 44100,
       bitDepth: 16,
     });
 
-    
+
     const writePromise = new Promise((resolve, reject) => {
       req.on('data', (chunk) => {
         audioFileStream.write(chunk);
@@ -87,10 +170,10 @@ const handleAudioUpload = async (req, res) => {
     });
 
     try {
-      
+
       await writePromise;
 
-      
+
       if (isNewAudio) {
         const textoModificado = await audioFun(audioFilePath);
 
@@ -114,67 +197,7 @@ const handleAudioUpload = async (req, res) => {
   }
 };
 
-// const audioFun = async (audioFilePath) => {
-//   try {
-//     console.time("audioFun");
-//     const transcription = await openai.audio.transcriptions.create({
-//       file: fs.createReadStream(audioFilePath),
-//       model: "whisper-1",
-//       language: "es",
-//     });
-//     let textowisper = transcription.text
-
-//     const textoModificado = await main(textowisper);
-
-//     console.log(textoModificado);
-//     console.timeEnd("audioFun");
-
-//     return textoModificado;
-//   } catch (error) {
-//     console.error('Error al crear la transcripción de audio con OpenAI:', error);
-//     throw error;
-//   }
-// };
-
-const audioFun = async (audioFilePath) => {
-  let retryCount = 0;
-  const maxRetries = 3;
-
-  while (retryCount < maxRetries) {
-    try {
-      if (path.extname(audioFilePath).toLowerCase() !== '.wav') {
-        throw new Error('El archivo no es un archivo WAV');
-      }
-
-      const transcription = await openai.audio.transcriptions.create({
-        file: fs.createReadStream(audioFilePath),
-        model: "whisper-1",
-        //language: "es",
-      });
-
-      let textoWisper = transcription.text;
-      const textoModificado = await main(textoWisper);
-
-      fs.unlinkSync(audioFilePath);
-
-      return textoModificado;
-    } catch (error) {
-      console.error('Error al crear la transcripción de audio con OpenAI:', error);
-      if (error.status === 400 && error.error && error.error.type === 'invalid_request_error') {
-        retryCount++;
-        console.log(`Reintentando (${retryCount}/${maxRetries})...`);
-      } else {
-        throw error;
-      }
-    }
-  }
-  throw new Error(`Se superó el número máximo de reintentos (${maxRetries})`);
-};
-
 module.exports = {
-  handleAudioUpload
-};
-
-module.exports = {
-  handleAudioUpload
+  handleAudioUpload,
+  MensajeResivido
 };
