@@ -7,7 +7,7 @@ let processingAudio = false;
 var cambioDeIdioma = "English";
 
 const openai = new OpenAI({
-  apiKey: "",
+  apiKey: "ddddddddd",
 });
 
 const MensajeResivido = async (req, res) => {
