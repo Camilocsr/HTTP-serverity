@@ -18,7 +18,7 @@ const MensajeResivido = async (req, res) => {
 
     if (mensajeRecibido.TextoUnity) {
       console.log('Mensaje recibido:', primerMensaje);
-      res.status(200).send(`Mensaje recibido exitosamente, Idioma cambiado a ${primerMensaje}`);
+      res.status(200).send(`Su selecion de idioma a sido cambiada exitosamente, Idioma cambiado a :${primerMensaje}`);
 
       cambioDeIdioma = primerMensaje;
     } else {
